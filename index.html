@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake Eating Apple Game</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: #090d12; color: #f4f7fb; font-family: Arial, sans-serif;
+    padding: 18px;
+  }
+  .wrap { width: min(94vw, 560px); text-align: center; }
+  h1 { margin: 0 0 8px; color: #a3ff12; letter-spacing: 1px; }
+  .sub { color: #aab5c2; margin: 0 0 14px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; }
+  .score { font-weight: bold; font-size: 1.1rem; }
+  canvas {
+    width: 100%; aspect-ratio: 1; display: block; background: #000;
+    border: 2px solid #293443; border-radius: 12px; touch-action: none;
+  }
+  button {
+    border: 0; border-radius: 10px; padding: 12px 18px; margin: 5px;
+    background: #a3ff12; color: #101600; font-weight: 800; font-size: 1rem;
+    cursor: pointer;
+  }
+  button.secondary { background: #263342; color: white; }
+  .controls { margin: 12px auto 0; width: 190px; display: grid;
+    grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .controls button { margin: 0; padding: 12px 0; font-size: 1.2rem; }
+  .hint { color: #aab5c2; font-size: .9rem; line-height: 1.5; }
+  #message { min-height: 24px; color: #ffd166; font-weight: bold; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>🐍 SNAKE GAME</h1>
+  <p class="sub">Eat the apples. Don't hit the wall or yourself!</p>
+  <div class="top"><span class="score">Score: <span id="score">0</span></span><span id="best">Best: 0</span></div>
+  <canvas id="game" width="480" height="480" aria-label="Snake game board"></canvas>
+  <div id="message">Press PLAY to start</div>
+  <div>
+    <button id="start">PLAY</button>
+    <button id="pause" class="secondary">PAUSE</button>
+    <button id="restart" class="secondary">RESTART</button>
+  </div>
+  <div class="controls" aria-label="Touch controls">
+    <span></span><button data-dir="up">▲</button><span></span>
+    <button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button>
+  </div>
+  <p class="hint">Computer: use Arrow Keys or WASD.<br>Phone/tablet: use the arrow buttons.</p>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const message = document.getElementById('message');
+  const SIZE = 24, CELLS = canvas.width / SIZE;
+  let snake, apple, direction, nextDirection, score, timer, running = false, over = false;
+  let best = Number(localStorage.getItem('snakeBest') || 0);
+  bestEl.textContent = 'Best: ' + best;
+
+  function randomApple() {
+    let p;
+    do { p = {x: Math.floor(Math.random()*CELLS), y: Math.floor(Math.random()*CELLS)}; }
+    while (snake.some(s => s.x === p.x && s.y === p.y));
+    return p;
+  }
+  function draw() {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#101820'; ctx.lineWidth = 1;
+    for (let i=0; i<=CELLS; i++) {
+      ctx.beginPath(); ctx.moveTo(i*SIZE,0); ctx.lineTo(i*SIZE,canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,i*SIZE); ctx.lineTo(canvas.width,i*SIZE); ctx.stroke();
+    }
+    ctx.fillStyle = '#ff3b30'; ctx.beginPath();
+    ctx.arc(apple.x*SIZE+SIZE/2, apple.y*SIZE+SIZE/2, SIZE*.38, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#a3ff12';
+    snake.forEach((s,i) => {
+      ctx.fillRect(s.x*SIZE+2, s.y*SIZE+2, SIZE-4, SIZE-4);
+      if (i===0) {
+        ctx.fillStyle = '#172400';
+        ctx.fillRect(s.x*SIZE+7, s.y*SIZE+7, 4, 4);
+        ctx.fillRect(s.x*SIZE+15, s.y*SIZE+7, 4, 4);
+        ctx.fillStyle = '#a3ff12';
+      }
+    });
+  }
+  function reset() {
+    clearInterval(timer); score = 0;
+    snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+    direction = {x:1,y:0}; nextDirection = direction;
+    apple = randomApple(); running = false; over = false;
+    scoreEl.textContent = score; message.textContent = 'Press PLAY to start';
+    draw();
+  }
+  function endGame() {
+    clearInterval(timer); running = false; over = true;
+    message.textContent = 'GAME OVER! Final score: ' + score;
+  }
+  function tick() {
+    direction = nextDirection;
+    const head = {x: snake[0].x+direction.x, y: snake[0].y+direction.y};
+    const ate = head.x===apple.x && head.y===apple.y;
+    const body = ate ? snake : snake.slice(0,-1);
+    if (head.x<0 || head.y<0 || head.x>=CELLS || head.y>=CELLS ||
+        body.some(s=>s.x===head.x && s.y===head.y)) return endGame();
+    snake.unshift(head);
+    if (ate) {
+      score++; scoreEl.textContent = score;
+      if (score>best) { best=score; localStorage.setItem('snakeBest',best); bestEl.textContent='Best: '+best; }
+      apple = randomApple();
+    } else snake.pop();
+    draw();
+  }
+  function start() {
+    if (over) reset();
+    if (running) return;
+    running = true; message.textContent = 'Good luck!';
+    timer = setInterval(tick, Math.max(65, 145-score*3));
+  }
+  function change(dir) {
+    const map = {up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+    const d = map[dir];
+    if (d && !(d.x===-direction.x && d.y===-direction.y)) nextDirection=d;
+  }
+  document.addEventListener('keydown', e => {
+    const keys = {ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};
+    if (keys[e.key]) { e.preventDefault(); change(keys[e.key]); if (!running && !over) start(); }
+    if (e.key===' ' && !over) { e.preventDefault(); togglePause(); }
+  });
+  document.querySelectorAll('[data-dir]').forEach(b => b.addEventListener('click',()=>change(b.dataset.dir)));
+  document.getElementById('start').addEventListener('click',start);
+  document.getElementById('restart').addEventListener('click',reset);
+  function togglePause() {
+    if (over) return;
+    if (running) { clearInterval(timer); running=false; message.textContent='Paused'; }
+    else start();
+  }
+  document.getElementById('pause').addEventListener('click',togglePause);
+  reset();
+})();
+</script>
+</body>
+</html>
